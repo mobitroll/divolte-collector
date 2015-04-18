@@ -22,6 +22,8 @@ import io.divolte.server.CookieValues.CookieValue;
 import io.divolte.server.hdfs.HdfsFlusher;
 import io.divolte.server.hdfs.HdfsFlushingPool;
 import io.divolte.server.ip2geo.LookupService;
+import io.divolte.server.flume.FlumeFlusher;
+import io.divolte.server.flume.FlumeFlushingPool;
 import io.divolte.server.kafka.KafkaFlusher;
 import io.divolte.server.kafka.KafkaFlushingPool;
 import io.divolte.server.processing.ItemProcessor;
@@ -51,6 +53,8 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
     @Nullable
     private final ProcessingPool<KafkaFlusher, AvroRecordBuffer> kafkaFlushingPool;
     @Nullable
+    private final ProcessingPool<FlumeFlusher, AvroRecordBuffer> flumeFlushingPool;
+    @Nullable
     private final ProcessingPool<HdfsFlusher, AvroRecordBuffer> hdfsFlushingPool;
 
     private final IncomingRequestListener listener;
@@ -64,12 +68,14 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
 
     public IncomingRequestProcessor(final Config config,
                                     @Nullable final KafkaFlushingPool kafkaFlushingPool,
+                                    @Nullable final FlumeFlushingPool flumeFlushingPool,
                                     @Nullable final HdfsFlushingPool hdfsFlushingPool,
                                     @Nullable final LookupService geoipLookupService,
                                     final Schema schema,
                                     final IncomingRequestListener listener) {
 
         this.kafkaFlushingPool = kafkaFlushingPool;
+        this.flumeFlushingPool = flumeFlushingPool;
         this.hdfsFlushingPool = hdfsFlushingPool;
         this.listener = listener;
 
@@ -175,6 +181,9 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
 
         if (null != kafkaFlushingPool) {
             kafkaFlushingPool.enqueue(avroBuffer.getPartyId().value, avroBuffer);
+        }
+        if (null != flumeFlushingPool) {
+            flumeFlushingPool.enqueue(avroBuffer.getPartyId().value, avroBuffer);
         }
         if (null != hdfsFlushingPool) {
             hdfsFlushingPool.enqueue(avroBuffer.getPartyId().value, avroBuffer);

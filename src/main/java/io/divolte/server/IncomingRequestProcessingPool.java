@@ -22,6 +22,7 @@ import io.divolte.server.hdfs.HdfsFlushingPool;
 import io.divolte.server.ip2geo.ExternalDatabaseLookupService;
 import io.divolte.server.ip2geo.LookupService;
 import io.divolte.server.kafka.KafkaFlushingPool;
+import io.divolte.server.flume.FlumeFlushingPool;
 import io.divolte.server.processing.ProcessingPool;
 import io.undertow.server.HttpServerExchange;
 
@@ -47,6 +48,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
     private final static Logger logger = LoggerFactory.getLogger(IncomingRequestProcessingPool.class);
 
     private final Optional<KafkaFlushingPool> kafkaPool;
+    private final Optional<FlumeFlushingPool> flumePool;
     private final Optional<HdfsFlushingPool> hdfsPool;
 
     public IncomingRequestProcessingPool() {
@@ -61,6 +63,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
                 config,
                 schemaFromConfig(config),
                 config.getBoolean("divolte.kafka_flusher.enabled") ? new KafkaFlushingPool(config) : null,
+                config.getBoolean("divolte.flume_flusher.enabled") ? new FlumeFlushingPool(config) : null,
                 config.getBoolean("divolte.hdfs_flusher.enabled") ? new HdfsFlushingPool(config, schemaFromConfig(config)) : null,
                 lookupServiceFromConfig(config),
                 listener
@@ -74,6 +77,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
             final Config config,
             final Schema schema,
             @Nullable final KafkaFlushingPool kafkaFlushingPool,
+            @Nullable final FlumeFlushingPool flumeFlushingPool,
             @Nullable final HdfsFlushingPool hdfsFlushingPool,
             @Nullable final LookupService geoipLookupService,
             final IncomingRequestListener listener) {
@@ -82,9 +86,10 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
                 maxQueueSize,
                 maxEnqueueDelay,
                 "Incoming Request Processor",
-                () -> new IncomingRequestProcessor(config, kafkaFlushingPool, hdfsFlushingPool, geoipLookupService, schema, listener));
+                () -> new IncomingRequestProcessor(config, kafkaFlushingPool, flumeFlushingPool, hdfsFlushingPool, geoipLookupService, schema, listener));
 
         this.kafkaPool = Optional.ofNullable(kafkaFlushingPool);
+        this.flumePool = Optional.ofNullable(flumeFlushingPool);
         this.hdfsPool = Optional.ofNullable(hdfsFlushingPool);
     }
 
@@ -129,6 +134,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
         super.stop();
 
         kafkaPool.ifPresent(KafkaFlushingPool::stop);
+        flumePool.ifPresent(FlumeFlushingPool::stop);
         hdfsPool.ifPresent(HdfsFlushingPool::stop);
     }
 }
