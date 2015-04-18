@@ -34,8 +34,6 @@ import java.util.stream.Collectors;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import kafka.common.FailedToSendMessageException;
-
 import org.apache.flume.Event;
 import org.apache.flume.EventDeliveryException;
 import org.apache.flume.api.RpcClient;
@@ -69,11 +67,25 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
         
         hostname = config.getString("divolte.flume_flusher.hostname");
         port = config.getInt("divolte.flume_flusher.port");
-        
-        client = RpcClientFactory.getDefaultInstance(hostname, port);
+      
+        try {
+            client = RpcClientFactory.getDefaultInstance(hostname, port);
+        } catch (Exception e) {
+            logger.info("Couldn't connect to Flume at startup, will retry");
+            client = null;
+        }
     }
 
     private void sendDataToFlume(final AvroRecordBuffer record) {
+      if (client == null) {
+          try {
+              client = RpcClientFactory.getDefaultInstance(hostname, port);
+          } catch (Exception e) {
+              logger.info("Couldn't connect to Flume at send, will retry");
+              client = null;
+              throw new RuntimeException("Error connecting");
+          }
+      }
       // Create a Flume Event object that encapsulates the sample data
       byte[] b = new byte[record.getByteBuffer().remaining()];
       record.getByteBuffer().get(b);
@@ -109,7 +121,7 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
 
     @FunctionalInterface
     private interface FlumeSender {
-        public abstract void send() throws FailedToSendMessageException;
+        public abstract void send() throws Exception;
     }
 
     private ProcessingDirective send(final FlumeSender sender) {
@@ -118,7 +130,7 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
             sender.send();
             pendingOperation = Optional.empty();
             result = CONTINUE;
-        } catch (final FailedToSendMessageException e) {
+        } catch (final Exception e) {
             logger.warn("Failed to send message(s) to flume! (Will retry.)", e);
             pendingOperation = Optional.of(sender);
             result = PAUSE;
