@@ -19,6 +19,8 @@ package io.divolte.server.flume;
 import io.divolte.server.AvroRecordBuffer;
 import io.divolte.server.processing.ItemProcessor;
 
+import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -42,6 +44,13 @@ import org.apache.flume.event.EventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.JsonEncoder;
+import org.apache.avro.io.EncoderFactory;
+
 import com.google.common.base.Joiner;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigList;
@@ -61,12 +70,15 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
     RpcClient client;
     final String hostname;
     final int port;
+    final Schema schema;
 
-    public FlumeFlusher(final Config config) {
+    public FlumeFlusher(final Config config, final Schema schema) {
         Objects.requireNonNull(config);
         
         hostname = config.getString("divolte.flume_flusher.hostname");
         port = config.getInt("divolte.flume_flusher.port");
+
+        this.schema = schema;
       
         try {
             client = RpcClientFactory.getDefaultInstance(hostname, port);
@@ -87,18 +99,29 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
           }
       }
       // Create a Flume Event object that encapsulates the sample data
-      byte[] b = new byte[record.getByteBuffer().remaining()];
-      record.getByteBuffer().get(b);
-      Event event = EventBuilder.withBody(b);
-
-      // Send the event
+      
       try {
-        client.append(event);
-      } catch (EventDeliveryException e) {
-        // clean up and recreate the client
-        client.close();
-        client = null;
-        client = RpcClientFactory.getDefaultInstance(hostname, port);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        JsonEncoder enc = EncoderFactory.get().jsonEncoder(schema, outputStream);
+      
+        DataFileWriter<GenericRecord> writer = new DataFileWriter<GenericRecord>(new GenericDatumWriter<>(schema)).create(schema, outputStream);
+        writer.appendEncoded(record.getByteBuffer());
+        writer.close();
+        enc.flush();
+
+        Event event = EventBuilder.withBody(outputStream.toByteArray());
+
+        // Send the event
+        try {
+          client.append(event);
+        } catch (EventDeliveryException e) {
+          // clean up and recreate the client
+          client.close();
+          client = null;
+          client = RpcClientFactory.getDefaultInstance(hostname, port);
+        }
+      } catch (IOException e) {
+        throw new RuntimeException("Error serializing event");
       }
     }
     

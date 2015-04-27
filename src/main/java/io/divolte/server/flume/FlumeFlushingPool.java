@@ -26,19 +26,22 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.typesafe.config.Config;
 
+import org.apache.avro.Schema;
+
 @ParametersAreNonnullByDefault
 public class FlumeFlushingPool extends ProcessingPool<FlumeFlusher, AvroRecordBuffer> {
-    public FlumeFlushingPool(final Config config) {
+    public FlumeFlushingPool(final Config config, final Schema schema) {
         this(
                 Objects.requireNonNull(config),
+                Objects.requireNonNull(schema),
                 config.getInt("divolte.flume_flusher.threads"),
                 config.getInt("divolte.flume_flusher.max_write_queue"),
                 config.getDuration("divolte.flume_flusher.max_enqueue_delay", TimeUnit.MILLISECONDS)
                 );
     }
 
-    public FlumeFlushingPool(Config config, int numThreads, int maxWriteQueue, long maxEnqueueDelay) {
-        super(numThreads, maxWriteQueue, maxEnqueueDelay, "Flume Flusher", () -> new FlumeFlusher(config));
+    public FlumeFlushingPool(Config config, final Schema schema, int numThreads, int maxWriteQueue, long maxEnqueueDelay) {
+          super(numThreads, maxWriteQueue, maxEnqueueDelay, "Flume Flusher", () -> new FlumeFlusher(config, schema));
     }
 
     public void enqueueRecord(final AvroRecordBuffer record) {

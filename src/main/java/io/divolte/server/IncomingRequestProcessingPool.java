@@ -63,7 +63,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
                 config,
                 schemaFromConfig(config),
                 config.getBoolean("divolte.kafka_flusher.enabled") ? new KafkaFlushingPool(config) : null,
-                config.getBoolean("divolte.flume_flusher.enabled") ? new FlumeFlushingPool(config) : null,
+                config.getBoolean("divolte.flume_flusher.enabled") ? new FlumeFlushingPool(config, schemaFromConfig(config)) : null,
                 config.getBoolean("divolte.hdfs_flusher.enabled") ? new HdfsFlushingPool(config, schemaFromConfig(config)) : null,
                 lookupServiceFromConfig(config),
                 listener
