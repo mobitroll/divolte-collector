@@ -121,7 +121,7 @@ dependencies {
     compile group: 'com.jayway.jsonpath', name: 'json-path', version: '2.0.0'
     compile group: 'com.fasterxml.jackson.core', name:'jackson-databind', version: '2.5.3'
 
-    compile group: 'org.apache.flume', name: 'flume-ng-sdk', version: '1.5.2'
+    compile group: 'org.apache.flume', name: 'flume-ng-sdk', version: '1.6.0'
 
     // We use the SLF4J API. At runtime, this is LogBack.
     // (We also force any dependencies that use Log4J to go via SLF4J.)
