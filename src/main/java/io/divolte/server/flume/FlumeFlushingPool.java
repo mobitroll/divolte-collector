@@ -17,30 +17,26 @@
 package io.divolte.server.flume;
 
 import io.divolte.server.AvroRecordBuffer;
+import io.divolte.server.ValidatedConfiguration;
 import io.divolte.server.processing.ProcessingPool;
-
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import org.apache.avro.Schema;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-
-import com.typesafe.config.Config;
-
-import org.apache.avro.Schema;
+import java.util.Objects;
 
 @ParametersAreNonnullByDefault
 public class FlumeFlushingPool extends ProcessingPool<FlumeFlusher, AvroRecordBuffer> {
-    public FlumeFlushingPool(final Config config, final Schema schema) {
+    public FlumeFlushingPool(final ValidatedConfiguration config, final Schema schema) {
         this(
                 Objects.requireNonNull(config),
                 Objects.requireNonNull(schema),
-                config.getInt("divolte.flume_flusher.threads"),
-                config.getInt("divolte.flume_flusher.max_write_queue"),
-                config.getDuration("divolte.flume_flusher.max_enqueue_delay", TimeUnit.MILLISECONDS)
+                config.configuration().flumeFlusher.threads,
+                config.configuration().flumeFlusher.maxWriteQueue,
+                config.configuration().flumeFlusher.maxEnqueueDelay.toMillis()
                 );
     }
 
-    public FlumeFlushingPool(Config config, final Schema schema, int numThreads, int maxWriteQueue, long maxEnqueueDelay) {
+    public FlumeFlushingPool(final ValidatedConfiguration config, final Schema schema, int numThreads, int maxWriteQueue, long maxEnqueueDelay) {
           super(numThreads, maxWriteQueue, maxEnqueueDelay, "Flume Flusher", () -> new FlumeFlusher(config, schema));
     }
 

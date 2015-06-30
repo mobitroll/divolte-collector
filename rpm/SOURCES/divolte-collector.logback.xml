@@ -7,11 +7,11 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <!-- Rollover at least daily, compressing the logs. -->
       <fileNamePattern>/var/log/divolte/divolte-collector-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <!-- Keep 90 days of history. -->
+      <maxHistory>90</maxHistory>
       <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
         <!-- ... or when the file size reaches 512MB. -->
         <maxFileSize>512MB</maxFileSize>
-        <!-- Keep 90 days of history. -->
-        <maxHistory>90</maxHistory>
       </timeBasedFileNamingAndTriggeringPolicy>
     </rollingPolicy>
     <cleanHistoryOnStart>true</cleanHistoryOnStart>
@@ -22,6 +22,14 @@
 
   <!-- Divolte-specific logging. -->
   <logger name="io.divolte" level="inherited"/>
+
+  <!--
+  ~ By default, failure at runtime to map JSON from event parameters is logged at the 'info'
+  ~ level. This is disabled by default to prevent logs being filled due to a configuration
+  ~ error. Change from 'warn' to 'info' if you wish to see these errors, for example to help
+  ~ with diagnosing why mapping isn't working.
+  -->
+  <logger name="io.divolte.server.recordmapping.DslRecordMapping$JsonValueProducer" level="warn" />
 
   <root level="info">
     <appender-ref ref="VARLOG"/>

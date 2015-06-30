@@ -86,8 +86,8 @@ The simplest possible mapping is mapping a simple value onto a schema field. The
 Alternatively, the map methods takes a closure as first argument, which can come in handy when the value is the result of several operations or a more complex construct, such as this example where we take a query parameter form the location and parse it to an int::
 
   map {
-    def u = parse location() to uri                   // parse a URI out of the location
-    parse location().query().value('n') to int32      // Take the n query parameter and try to parse an int out of it
+    def u = parse location() to uri          // Parse the URI out of the location
+    parse u.query().value('n') to int32      // Take the n query parameter and try to parse an int out of it
   } onto 'intField'
 
 In Groovy, the last statement in a closure becomes the return value for the closure. So in the closure above, the value returned by the parse call is the result of the entire closure. This is in turn mapped onto the 'intField' field of the Avro record.
@@ -105,7 +105,7 @@ This is most often used in combination with `Conditional mapping (when)`_, like 
 
 Value presence and nulls
 """"""""""""""""""""""""
-Not all values are present in each request. For example when using a custom cookie value, there could be incoming requests where the cookie is not sent by the client. In this case, the cookie value is said to absent. Divolte Collector will never actively set a null value. Instead for absent values it does nothing at all; i.e. the mapped field is not set on the Avro record. When values that are absent are used in subsequent constructs, the resulting values will also be absent. In the following example, if the incoming request has no referer, the field 'intField' will never be set, but no error occurs::
+Not all values are present in each request. For example when using a custom cookie value, there could be incoming requests where the cookie is not sent by the client. In this case, the cookie value is said to absent. Divolte Collector will never actively set a null value. Instead for absent values it does nothing at all; i.e. the mapped field is not set on the Avro record. When values that are absent are used in subsequent constructs, the resulting values will also be absent. In the following example, if the incoming request has no referrer, the field 'intField' will never be set, but no error occurs::
 
   def u = parse referer() to uri              // parse a URI out of the referer
   def q = u.query()                           // parse the query string of the URI
@@ -116,69 +116,72 @@ Because absent values result in fields not being set, your schema must have defa
 
 Types
 ^^^^^
-Values in the mapping are typed and the value type must match the type of the Avro field that they are mapped onto. Divolte Collector checks the type compatibility during startup and will report an error if there is a mismatch. The type for a value can be found in the documentation below. 
+Values in the mapping are typed and the value type must match the type of the Avro field that they are mapped onto. Divolte Collector checks the type compatibility during startup and will report an error if there is a mismatch. The type for a value can be found in the documentation below.
 
 Below is a table of all types that can be produced in a mapping and the corresponding Avro schema's that match them:
 
-+----------------------------+-----------------------------------------------------------------------+
-| type                       | Avro type                                                             |
-+============================+=======================================================================+
-| string                     | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","string"], default: null }   |
-+----------------------------+-----------------------------------------------------------------------+
-| boolean                    | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","boolean"], default: null }  |
-+----------------------------+-----------------------------------------------------------------------+
-| int                        | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","int"], default: null }      |
-+----------------------------+-----------------------------------------------------------------------+
-| long                       | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","long"], default: null }     |
-+----------------------------+-----------------------------------------------------------------------+
-| float                      | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","float"], default: null }    |
-+----------------------------+-----------------------------------------------------------------------+
-| double                     | ::                                                                    |
-|                            |                                                                       |
-|                            |   { "name": "fieldName", "type": ["null","double"], default: null }   |
-+----------------------------+-----------------------------------------------------------------------+
-| map<string,list<string>>   | ::                                                                    |
-|                            |                                                                       |
-|                            |   {                                                                   |
-|                            |     "name": "fieldName",                                              |
-|                            |     "type": [                                                         |
-|                            |       "null",                                                         |
-|                            |       {                                                               |
-|                            |         "type": "map",                                                |
-|                            |         "values": {                                                   |
-|                            |           "type": "array",                                            |
-|                            |           "items": "string"                                           |
-|                            |         }                                                             |
-|                            |       }                                                               |
-|                            |     ],                                                                |
-|                            |     "default": null                                                   |
-|                            |   }                                                                   |
-+----------------------------+-----------------------------------------------------------------------+
-| list<string>               | ::                                                                    |
-|                            |                                                                       |
-|                            |   {                                                                   |
-|                            |     "name": "fieldName",                                              |
-|                            |     "type":                                                           |
-|                            |       [                                                               |
-|                            |         "null",                                                       |
-|                            |         {                                                             |
-|                            |           "type": "array",                                            |
-|                            |           "items": "int"                                              |
-|                            |         }                                                             |
-|                            |       ],                                                              |
-|                            |     "default": null                                                   |
-|                            |   }                                                                   |
-+----------------------------+-----------------------------------------------------------------------+
++----------------------------+------------------------------------------------------------------------+
+| type                       | Avro type                                                              |
++============================+========================================================================+
+| string                     | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","string"], "default": null }  |
++----------------------------+------------------------------------------------------------------------+
+| boolean                    | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","boolean"], "default": null } |
++----------------------------+------------------------------------------------------------------------+
+| int                        | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","int"], "default": null }     |
++----------------------------+------------------------------------------------------------------------+
+| long                       | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","long"], "default": null }    |
++----------------------------+------------------------------------------------------------------------+
+| float                      | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","float"], "default": null }   |
++----------------------------+------------------------------------------------------------------------+
+| double                     | ::                                                                     |
+|                            |                                                                        |
+|                            |   { "name": "fieldName", "type": ["null","double"], "default": null }  |
++----------------------------+------------------------------------------------------------------------+
+| map<string,list<string>>   | ::                                                                     |
+|                            |                                                                        |
+|                            |   {                                                                    |
+|                            |     "name": "fieldName",                                               |
+|                            |     "type": [                                                          |
+|                            |       "null",                                                          |
+|                            |       {                                                                |
+|                            |         "type": "map",                                                 |
+|                            |         "values": {                                                    |
+|                            |           "type": "array",                                             |
+|                            |           "items": "string"                                            |
+|                            |         }                                                              |
+|                            |       }                                                                |
+|                            |     ],                                                                 |
+|                            |     "default": null                                                    |
+|                            |   }                                                                    |
++----------------------------+------------------------------------------------------------------------+
+| list<string>               | ::                                                                     |
+|                            |                                                                        |
+|                            |   {                                                                    |
+|                            |     "name": "fieldName",                                               |
+|                            |     "type":                                                            |
+|                            |       [                                                                |
+|                            |         "null",                                                        |
+|                            |         {                                                              |
+|                            |           "type": "array",                                             |
+|                            |           "items": "int"                                               |
+|                            |         }                                                              |
+|                            |       ],                                                               |
+|                            |     "default": null                                                    |
+|                            |   }                                                                    |
++----------------------------+------------------------------------------------------------------------+
+| JSON (JsonNode)            | _Must match the structure of the JSON fragment._                       |
+|                            | _See :ref:`mapping-json-label`._                                       |
++----------------------------+------------------------------------------------------------------------+
 
 Casting / parsing
 """""""""""""""""
@@ -214,6 +217,106 @@ Because int, long, boolean, etc. are reserved words in Groovy, the mapping DSL u
 | uri               | `URI`_            |
 +-------------------+-------------------+
 
+.. _mapping-json-label:
+
+Mapping JSON (``JsonNode``) to Avro fields
+""""""""""""""""""""""""""""""""""""""""""
+
+Some expressions, for example, ``eventParameters()`` (and its ``path()`` method), produce a ``JsonNode`` value that represents JSON supplied by a client. Because Avro doesn't have a type built in to handle arbitrary JSON data, a *compatible* Avro type must be chosen to match the expected structure of the JSON from the client. The following table lists the rules for compatibility between JSON values and Avro types.
+
++---------------+-------------------------------------------------------------------------+
+| Avro type     | JSON value                                                              |
++===============+=========================================================================+
+| | ``null``    | JSON's ``null`` value                                                   |
++---------------+-------------------------------------------------------------------------+
+| | ``boolean`` | A JSON boolean, or a string if it can be parsed as a boolean.           |
++---------------+-------------------------------------------------------------------------+
+| | ``int``     | A JSON number, or a string if it can be parsed as a number.             |
+| | ``long``    | Fractional components are truncated for ``float`` and ``double``.       |
++---------------+-------------------------------------------------------------------------+
+| | ``float``   | A JSON number, or a string if it can be parsed as a number.             |
+| | ``double``  | Note that full floating-point precision may not be preserved.           |
++---------------+-------------------------------------------------------------------------+
+| | ``bytes``   | A JSON string, with BASE64 encoded binary data.                         |
++---------------+-------------------------------------------------------------------------+
+| | ``string``  | A JSON string, number or boolean value.                                 |
++---------------+-------------------------------------------------------------------------+
+| | ``enum``    | A JSON string, so long as the it's identical to one of the              |
+|               | enumeration's symbols. (If not, the value will be treated as null.)     |
++---------------+-------------------------------------------------------------------------+
+| | ``record``  | A JSON object, with each property corresponding to a field in the       |
+|               | record. (Extraneous properties are ignored.) The property values and    |
+|               | field types must also be compatible.                                    |
++---------------+-------------------------------------------------------------------------+
+| | ``array``   | A JSON array. Each element of the JSON array must be compatible with    |
+|               | the type declared for the Avro array.                                   |
++---------------+-------------------------------------------------------------------------+
+| | ``map``     | A JSON object, with each property being an entry in the map. Property   |
+|               | names are used for keys, and the values must be compatible with the     |
+|               | Avro type for the map values.                                           |
++---------------+-------------------------------------------------------------------------+
+| | ``union``   | Only trivial unions are supported of ``null`` with another type. The    |
+|               | JSON value must either be null or compatible with the other union type. |
++---------------+-------------------------------------------------------------------------+
+| | ``fixed``   | The same as ``bytes``, as above. Data beyond the declared length will   |
+|               | be truncated.                                                           |
++---------------+-------------------------------------------------------------------------+
+
+In addition to these compatibility rules, trivial array wrapping and unwrapping will be performed if necessary:
+
+* If the Avro type specifies an array, any JSON value compatible with the type of the array elements will be wrapped as a single-element array.
+* If the Avro type is not an array, a JSON array containing a single element that is compatible will be unwrapped.
+
+For example, a shopping basket could be supplied as the following JSON::
+
+  {
+    "total_price": 184.91,
+    "items": [
+      { "sku": "0886974140818", "count": 1, "price_per": 43.94 },
+      { "sku": "0094638246817", "count": 1, "price_per": 22.99 },
+      { "sku": "0093624979357", "count": 1, "price_per": 27.99 },
+      { "sku": "8712837825207", "count": 1, "price_per": 89.99 }
+    ]
+  }
+
+This could be mapped using the following Avro schema::
+
+  {
+    "type": [
+      "null",
+      {
+        "name": "ShoppingBasket",
+        "type": "record",
+        "fields": [
+          { "name": "total_price", "type": "float" },
+          {
+            "name": "items",
+            "type": {
+              "type": "array",
+              "items": {
+                "type": "record",
+                "name": "LineItem",
+                "fields": [
+                  { "name": "sku",       "type": "string" },
+                  { "name": "count",     "type": "int"    },
+                  { "name": "price_per", "type": "double" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "default": null
+  }
+
+The Avro field will remain unchanged if mapping fails at runtime because the JSON value cannot be mapped onto the specified Avro type. (The complete record may subsequently be invalid if the field was mandatory.)
+
+.. note::
+
+   Unlike most mappings, schema compatibility for JSON mappings cannot be checked on startup because
+   compatibility depends on the JSON supplied with each individual event.
+
 Conditional mapping (when)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 Not all incoming requests are the same and usually, different types of requests require different values to be extracted and different fields to be set. This can be achieved using conditional mapping. With conditional mapping any boolean value can be used to conditionally apply a part of the mapping script. This can be done using the following syntax::
@@ -229,7 +332,7 @@ A more concrete example of using this construct would be::
     map true onto 'directTraffic'
   }
 
-Here we check whether the referer value is absent and if so, map a literal value onto a boolean field.
+Here we check whether the referrer value is absent and if so, map a literal value onto a boolean field.
 
 As an alternative syntax, it is possible to use a closure that produces the boolean value as well, just like in `Mapping values onto fields (map)`_. In this example we check if a query parameter called clientId is present in the location and on that condition perform a mapping::
 
@@ -268,7 +371,7 @@ Any boolean value can be used as a condition. In order to be able to create flex
 
 Sections and short circuit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-Sections are useful for grouping together parts of the mapping that somehow form a logical subset of the entire mapping. This makes it possible to conditionally jump out of a section as well. To define a section, just use the secion keyword followed by a closure that contains the section::
+Sections are useful for grouping together parts of the mapping that somehow form a logical subset of the entire mapping. This makes it possible to conditionally jump out of a section as well. To define a section, just use the section keyword followed by a closure that contains the section::
 
   section {
     // Section's mappings go here
@@ -330,7 +433,7 @@ Which in turn is equals to this::
   def i = 42
   println(i.plus(2))
 
-When chaining sinle argument methods, this works out well. However, with nested method calls, this can be more problematic. Let's say we have a method called increment which increments the argument by one; so increment(10) will return 11. For example the following will not compile::
+When chaining single argument methods, this works out well. However, with nested method calls, this can be more problematic. Let's say we have a method called increment which increments the argument by one; so increment(10) will return 11. For example the following will not compile::
 
   println increment 10
 
@@ -688,29 +791,13 @@ eventParameters
     map eventParameters() onto 'parametersField'
 
 :Description:
-  The value for all parameters that were sent as part of a custom event from JavaScript. Note that these are always strings, regardless of the type used on the client side.
+  A JSON object (``JsonNode``) containing the custom parameters that were submitted with
+  the event.
 
-  Use the following Avro type to map the event parameters:
-
-  ::
-  
-    {
-      "name": "parametersField",
-      "type": [
-        "null",
-        {
-          "type": "map",
-          "values": {
-            "type": "string"
-          }
-        }
-      ],
-      "default": null
-    }
-
+  See :ref:`mapping-json-label` for an example on how to map this to a field.
 
 :Type:
-  map<string,string>
+  JsonNode
 
 eventParameters value
 """""""""""""""""""""
@@ -718,13 +805,13 @@ eventParameters value
 
   ::
 
-    // on the client in JavaScript:
+    // On the client in JavaScript:
     divolte.signal('myEvent', { foo: 'hello', bar: 42 });
 
-    // in the mapping
+    // In the mapping:
     map eventParameters().value('foo') onto 'fooField'
 
-    // or with a cast
+    // Or with a cast:
     map { parse eventParameters().value('bar') to int32 } onto 'barField'
 
 :Description:
@@ -732,6 +819,38 @@ eventParameters value
 
 :Type:
   string
+
+eventParameters path
+""""""""""""""""""""
+:Usage:
+
+  ::
+
+    // On the client in JavaScript:
+    divolte.signal('searchResults', [
+      { "sku": "0886974140818", "score": 0.9 },
+      { "sku": "0094638246817", "score": 0.8 }
+    ]);
+
+    // In the Avro schema:
+    {
+      "name": "searchResults",
+      "type": [ "null", { "type": "array", "items": "string" } ],
+      "default": null
+    }
+
+    // In the mapping:
+    map eventParameters().path('$[*].sku') onto 'searchResults'
+
+:Description:
+  This can be used to extract parts of parameters supplied with the event using a JSON-path expression. (See http://goessner.net/articles/JsonPath/ for a description of JSON-path expressions.)
+
+  If the expression does not match anything, the value is not considered to be present. (A ``when`` expression can test for this.)
+
+  See :ref:`mapping-json-label` for an example on how to map JSON values to a field. Expressions can return more than one result; these are presented as a JSON array for subsequent mapping.
+
+:Type:
+  JsonNode
 
 URI
 """

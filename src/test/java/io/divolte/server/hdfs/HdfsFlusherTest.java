@@ -17,7 +17,8 @@
 package io.divolte.server.hdfs;
 
 import io.divolte.server.AvroRecordBuffer;
-import io.divolte.server.CookieValues;
+import io.divolte.server.DivolteIdentifier;
+import io.divolte.server.ValidatedConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -76,22 +77,25 @@ public class HdfsFlusherTest {
 
     @Test
     public void shouldCreateAndPopulateFileWithSimpleStrategy() throws IOException {
-        Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
-        Config config = ConfigFactory.parseResources("hdfs-flusher-test.conf").withFallback(ConfigFactory.parseString(
-                "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 day\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"'));
+        final Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
+        final Config config =
+            ConfigFactory.parseString(
+                   "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 day\n"
+                   + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
+                   + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"')
+                   .withFallback(ConfigFactory.parseResources("hdfs-flusher-test.conf"));
+        final ValidatedConfiguration vc = new ValidatedConfiguration(() -> config);
 
-        HdfsFlusher flusher = new HdfsFlusher(config, schema);
+        final HdfsFlusher flusher = new HdfsFlusher(vc, schema);
 
-        List<Record> records = LongStream.range(0, 10)
+        final List<Record> records = LongStream.range(0, 10)
         .mapToObj((time) -> new GenericRecordBuilder(schema)
         .set("ts", time)
         .set("remoteHost", ARBITRARY_IP)
         .build())
         .collect(Collectors.toList());
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         flusher.cleanup();
 
@@ -103,22 +107,25 @@ public class HdfsFlusherTest {
 
     @Test
     public void shouldWriteInProgressFilesWithNonAvroExtension() throws IOException {
-        Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
-        Config config = ConfigFactory.parseResources("hdfs-flusher-test.conf").withFallback(ConfigFactory.parseString(
-                "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 day\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"'));
+        final Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
+        final Config config =
+             ConfigFactory.parseString(
+                             "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 day\n"
+                             + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
+                             + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"')
+                          .withFallback(ConfigFactory.parseResources("hdfs-flusher-test.conf"));
+        final ValidatedConfiguration vc = new ValidatedConfiguration(() -> config);
 
-        HdfsFlusher flusher = new HdfsFlusher(config, schema);
+        final HdfsFlusher flusher = new HdfsFlusher(vc, schema);
 
-        List<Record> records = LongStream.range(0, 10)
+        final List<Record> records = LongStream.range(0, 10)
                                          .mapToObj((time) -> new GenericRecordBuilder(schema)
                                                  .set("ts", time)
                                                  .set("remoteHost", ARBITRARY_IP)
                                                  .build())
                                          .collect(Collectors.toList());
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         assertTrue(Files.walk(tempInflightDir)
              .filter((p) -> p.toString().endsWith(".avro.partial"))
@@ -128,29 +135,32 @@ public class HdfsFlusherTest {
 
     @Test
     public void shouldRollFilesWithSimpleStrategy() throws IOException, InterruptedException {
-        Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
-        Config config = ConfigFactory.parseResources("hdfs-flusher-test.conf").withFallback(ConfigFactory.parseString(
-                "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 second\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"'));
+        final Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
+        final Config config =
+             ConfigFactory.parseString(
+                             "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 1 second\n"
+                             + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
+                             + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"')
+                          .withFallback(ConfigFactory.parseResources("hdfs-flusher-test.conf"));
+        final ValidatedConfiguration vc = new ValidatedConfiguration(() -> config);
 
-        List<Record> records = LongStream.range(0, 5)
+        final List<Record> records = LongStream.range(0, 5)
         .mapToObj((time) -> new GenericRecordBuilder(schema)
         .set("ts", time)
         .set("remoteHost", ARBITRARY_IP)
         .build())
         .collect(Collectors.toList());
 
-        HdfsFlusher flusher = new HdfsFlusher(config, schema);
+        final HdfsFlusher flusher = new HdfsFlusher(vc, schema);
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         for (int c = 0; c < 2; c++) {
             Thread.sleep(500);
             flusher.heartbeat();
         }
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         flusher.cleanup();
 
@@ -167,29 +177,32 @@ public class HdfsFlusherTest {
 
     @Test
     public void shouldNotCreateEmptyFiles() throws IOException, InterruptedException {
-        Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
-        Config config = ConfigFactory.parseResources("hdfs-flusher-test.conf").withFallback(ConfigFactory.parseString(
-                "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 100 millisecond\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
-                + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"'));
+        final Schema schema = schemaFromClassPath("/MinimalRecord.avsc");
+        final Config config =
+            ConfigFactory.parseString(
+                            "divolte.hdfs_flusher.simple_rolling_file_strategy.roll_every = 100 millisecond\n"
+                            + "divolte.hdfs_flusher.simple_rolling_file_strategy.working_dir = \"" + tempInflightDir.toString() + "\"\n"
+                            + "divolte.hdfs_flusher.simple_rolling_file_strategy.publish_dir = \"" + tempPublishDir.toString() + '"')
+                         .withFallback(ConfigFactory.parseResources("hdfs-flusher-test.conf"));
+        final ValidatedConfiguration vc = new ValidatedConfiguration(() -> config);
 
-        List<Record> records = LongStream.range(0, 5)
+        final List<Record> records = LongStream.range(0, 5)
         .mapToObj((time) -> new GenericRecordBuilder(schema)
         .set("ts", time)
         .set("remoteHost", ARBITRARY_IP)
         .build())
         .collect(Collectors.toList());
 
-        HdfsFlusher flusher = new HdfsFlusher(config, schema);
+        final HdfsFlusher flusher = new HdfsFlusher(vc, schema);
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         for (int c = 0; c < 4; c++) {
             Thread.sleep(500);
             flusher.heartbeat();
         }
 
-        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(CookieValues.generate(), CookieValues.generate(), System.currentTimeMillis(), 0, record)));
+        records.forEach((record) -> flusher.process(AvroRecordBuffer.fromRecord(DivolteIdentifier.generate(), DivolteIdentifier.generate(), System.currentTimeMillis(), 0, record)));
 
         flusher.cleanup();
 
@@ -214,13 +227,15 @@ public class HdfsFlusherTest {
     }
 
     private void verifyAvroFile(List<Record> expected, Schema schema, Path avroFile) {
-        List<Record> result = StreamSupport.stream(readAvroFile(schema, avroFile.toFile()).spliterator(), false)
-        .collect(Collectors.toList());
+        final List<Record> result =
+                StreamSupport
+                    .stream(readAvroFile(schema, avroFile.toFile()).spliterator(), false)
+                    .collect(Collectors.toList());
         assertEquals(expected, result);
     }
 
     private DataFileReader<Record> readAvroFile(Schema schema, File file) {
-        DatumReader<Record> dr = new GenericDatumReader<>(schema);
+        final DatumReader<Record> dr = new GenericDatumReader<>(schema);
         try {
             return new DataFileReader<>(file, dr);
         } catch (IOException e) {
