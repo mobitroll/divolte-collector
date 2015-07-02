@@ -22,6 +22,7 @@ import io.divolte.server.ip2geo.ExternalDatabaseLookupService;
 import io.divolte.server.ip2geo.LookupService;
 import io.divolte.server.kafka.KafkaFlushingPool;
 import io.divolte.server.processing.ProcessingPool;
+import io.divolte.server.pubsub.PubsubFlushingPool;
 import io.undertow.server.HttpServerExchange;
 
 import java.io.File;
@@ -43,6 +44,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
 
     private final Optional<KafkaFlushingPool> kafkaPool;
     private final Optional<HdfsFlushingPool> hdfsPool;
+    private final Optional<PubsubFlushingPool> pubsubPool;
 
     public IncomingRequestProcessingPool(final ValidatedConfiguration vc, IncomingRequestListener listener) {
         this (
@@ -53,6 +55,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
                 schemaFromConfig(vc),
                 vc.configuration().kafkaFlusher.enabled ? new KafkaFlushingPool(vc) : null,
                 vc.configuration().hdfsFlusher.enabled ? new HdfsFlushingPool(vc, schemaFromConfig(vc)) : null,
+                vc.configuration().pubsubFlusher.enabled ? new PubsubFlushingPool(vc) : null,
                 lookupServiceFromConfig(vc),
                 listener
                 );
@@ -66,6 +69,7 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
             final Schema schema,
             @Nullable final KafkaFlushingPool kafkaFlushingPool,
             @Nullable final HdfsFlushingPool hdfsFlushingPool,
+            @Nullable final PubsubFlushingPool pubsubFlushingPool,
             @Nullable final LookupService geoipLookupService,
             final IncomingRequestListener listener) {
         super(
@@ -73,10 +77,11 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
                 maxQueueSize,
                 maxEnqueueDelay,
                 "Incoming Request Processor",
-                () -> new IncomingRequestProcessor(vc, kafkaFlushingPool, hdfsFlushingPool, geoipLookupService, schema, listener));
+                () -> new IncomingRequestProcessor(vc, kafkaFlushingPool, hdfsFlushingPool, pubsubFlushingPool, geoipLookupService, schema, listener));
 
         this.kafkaPool = Optional.ofNullable(kafkaFlushingPool);
         this.hdfsPool = Optional.ofNullable(hdfsFlushingPool);
+        this.pubsubPool = Optional.ofNullable(pubsubFlushingPool);
     }
 
     private static Schema schemaFromConfig(final ValidatedConfiguration vc) {
@@ -121,5 +126,6 @@ final class IncomingRequestProcessingPool extends ProcessingPool<IncomingRequest
 
         kafkaPool.ifPresent(KafkaFlushingPool::stop);
         hdfsPool.ifPresent(HdfsFlushingPool::stop);
+        pubsubPool.ifPresent(PubsubFlushingPool::stop);
     }
 }

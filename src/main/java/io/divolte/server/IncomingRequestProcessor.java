@@ -25,6 +25,8 @@ import io.divolte.server.kafka.KafkaFlusher;
 import io.divolte.server.kafka.KafkaFlushingPool;
 import io.divolte.server.processing.ItemProcessor;
 import io.divolte.server.processing.ProcessingPool;
+import io.divolte.server.pubsub.PubsubFlusher;
+import io.divolte.server.pubsub.PubsubFlushingPool;
 import io.divolte.server.recordmapping.DslRecordMapper;
 import io.divolte.server.recordmapping.DslRecordMapping;
 import io.divolte.server.recordmapping.RecordMapper;
@@ -54,6 +56,8 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
     private final ProcessingPool<KafkaFlusher, AvroRecordBuffer> kafkaFlushingPool;
     @Nullable
     private final ProcessingPool<HdfsFlusher, AvroRecordBuffer> hdfsFlushingPool;
+    @Nullable
+    private final ProcessingPool<PubsubFlusher, AvroRecordBuffer> pubsubFlushingPool;
 
     private final IncomingRequestListener listener;
 
@@ -67,12 +71,14 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
     public IncomingRequestProcessor(final ValidatedConfiguration vc,
                                     @Nullable final KafkaFlushingPool kafkaFlushingPool,
                                     @Nullable final HdfsFlushingPool hdfsFlushingPool,
+                                    @Nullable final PubsubFlushingPool pubsubFlushingPool,
                                     @Nullable final LookupService geoipLookupService,
                                     final Schema schema,
                                     final IncomingRequestListener listener) {
 
         this.kafkaFlushingPool = kafkaFlushingPool;
         this.hdfsFlushingPool = hdfsFlushingPool;
+        this.pubsubFlushingPool = pubsubFlushingPool;
         this.listener = listener;
 
         keepCorrupted = !vc.configuration().incomingRequestProcessor.discardCorrupted;
@@ -177,6 +183,9 @@ public final class IncomingRequestProcessor implements ItemProcessor<HttpServerE
         }
         if (null != hdfsFlushingPool) {
             hdfsFlushingPool.enqueue(avroBuffer.getPartyId().value, avroBuffer);
+        }
+        if (null != pubsubFlushingPool) {
+            pubsubFlushingPool.enqueue(avroBuffer.getPartyId().value, avroBuffer);
         }
     }
 }

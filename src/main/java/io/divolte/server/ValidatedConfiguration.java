@@ -147,6 +147,17 @@ public final class ValidatedConfiguration {
                 getOrAddException((p) -> configToProperties(config, p), "divolte.kafka_flusher.producer",                             exceptions)
                 );
 
+        final PubsubFlusherConfiguration pubsubFlusher = new PubsubFlusherConfiguration(
+                getOrAddException(              config::getBoolean,     "divolte.pubsub_flusher.enabled",                              exceptions),
+                getOrAddException(              config::getInt,         "divolte.pubsub_flusher.threads",                              exceptions),
+                getOrAddException(              config::getInt,         "divolte.pubsub_flusher.max_write_queue",                      exceptions),
+                getOrAddException(              duration(config),       "divolte.pubsub_flusher.max_enqueue_delay",                    exceptions),
+                getOrAddException(              config::getString,      "divolte.pubsub_flusher.topic",                                exceptions),
+                getOrAddException(              config::getString,      "divolte.pubsub_flusher.project",                              exceptions),
+                getOrAddException(              config::getString,      "divolte.pubsub_flusher.credentials",                          exceptions),
+                getOrAddException(              config::getString,      "divolte.pubsub_flusher.application_name",                     exceptions)
+        );
+
         final HdfsConfiguration hdfs = new HdfsConfiguration(
                 getOptionalOrAddException(      config::getString,      "divolte.hdfs_flusher.hdfs.uri",                              exceptions, config),
                 getOrAddException((p) -> (short) config.getInt(p),      "divolte.hdfs_flusher.hdfs.replication",                      exceptions)
@@ -185,7 +196,7 @@ public final class ValidatedConfiguration {
                 fileStrategy
                 );
 
-        return new DivolteConfiguration(server, tracking, javascript, incomingRequestProcessor, kafkaFlusher, hdfsFlusher);
+        return new DivolteConfiguration(server, tracking, javascript, incomingRequestProcessor, kafkaFlusher, hdfsFlusher, pubsubFlusher);
     }
 
     private static Function<String,Duration> duration(final Config config) {
@@ -287,6 +298,7 @@ public final class ValidatedConfiguration {
         public final IncomingRequestProcessorConfiguration incomingRequestProcessor;
         public final KafkaFlusherConfiguration kafkaFlusher;
         public final HdfsFlusherConfiguration hdfsFlusher;
+        public final PubsubFlusherConfiguration pubsubFlusher;
 
         private DivolteConfiguration(
                 final ServerConfiguration server,
@@ -294,13 +306,15 @@ public final class ValidatedConfiguration {
                 final JavascriptConfiguration javascript,
                 final IncomingRequestProcessorConfiguration incomingRequestProcessor,
                 final KafkaFlusherConfiguration kafkaFlusher,
-                final HdfsFlusherConfiguration hdfsFlusher) {
+                final HdfsFlusherConfiguration hdfsFlusher,
+                final PubsubFlusherConfiguration pubsubFlusher) {
             this.server = server;
             this.tracking = tracking;
             this.javascript = javascript;
             this.incomingRequestProcessor = incomingRequestProcessor;
             this.kafkaFlusher = kafkaFlusher;
             this.hdfsFlusher = hdfsFlusher;
+            this.pubsubFlusher = pubsubFlusher;
         }
     }
 
@@ -437,6 +451,37 @@ public final class ValidatedConfiguration {
             this.maxEnqueueDelay = maxEnqueueDelay;
             this.topic = topic;
             this.producer = producer;
+        }
+    }
+
+    @ParametersAreNullableByDefault
+    public static final class PubsubFlusherConfiguration {
+        public final Boolean enabled;
+        public final Integer threads;
+        public final Integer maxWriteQueue;
+        public final Duration maxEnqueueDelay;
+        public final String topic;
+        public final String project;
+        public final String credentials;
+        public final String applicationName;
+
+        private PubsubFlusherConfiguration(
+                final Boolean enabled,
+                Integer threads,
+                final Integer maxWriteQueue,
+                final Duration maxEnqueueDelay,
+                final String topic,
+                final String project,
+                final String credentials,
+                final String applicationName) {
+            this.enabled = enabled;
+            this.threads = threads;
+            this.maxWriteQueue = maxWriteQueue;
+            this.maxEnqueueDelay = maxEnqueueDelay;
+            this.topic = topic;
+            this.project = project;
+            this.credentials = credentials;
+            this.applicationName = applicationName;
         }
     }
 
