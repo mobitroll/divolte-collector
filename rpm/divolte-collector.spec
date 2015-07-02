@@ -6,7 +6,7 @@
 %define snapshot %{nil}%{?snapshotVersion}
 
 Name:           divolte-collector
-Version:        0.2.1
+Version:        0.4.0
 Release:        1%{?dist}
 Summary:        The Divolte click-stream collection agent.
 
@@ -45,12 +45,12 @@ events from browsers. It will be started automatically on system startup.
 sed -e "s/scmVersion\.version/'%{version}%{snapshot}'/g" build.gradle > build.gradle.$$ && mv build.gradle.$$ build.gradle
 
 %build
-./gradlew -x test build
+./gradlew --no-daemon --exclude-task test build
 
 %install
 rm -rf "%{buildroot}"
 
-./gradlew -x test installApp
+./gradlew --no-daemon --exclude-task test installApp
 
 %{__mkdir_p} "%{buildroot}/etc/divolte"
 %{__mkdir_p} "%{buildroot}/etc/init.d"
@@ -68,10 +68,10 @@ rm -rf "%{buildroot}"
 %{__ln_s} ../share/divolte/bin/%{name} "%{buildroot}/usr/bin/%{name}"
 
 %check
-./gradlew test
+./gradlew --no-daemon test
 
 %clean
-./gradlew clean
+./gradlew --no-daemon clean
 
 %pre
 getent group divolte >/dev/null || groupadd -r divolte

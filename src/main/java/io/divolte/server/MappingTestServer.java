@@ -1,6 +1,12 @@
 package io.divolte.server;
 
-import static io.divolte.server.IncomingRequestProcessor.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.google.common.collect.ImmutableList;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import io.divolte.server.ip2geo.ExternalDatabaseLookupService;
 import io.divolte.server.ip2geo.LookupService;
 import io.divolte.server.recordmapping.DslRecordMapper;
@@ -10,38 +16,36 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
-
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.streams.ChannelInputStream;
 
-import com.fasterxml.jackson.jr.ob.JSON;
-import com.google.common.collect.ImmutableList;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.io.File;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.util.Optional;
+
+import static io.divolte.server.IncomingRequestProcessor.DIVOLTE_EVENT_KEY;
+import static io.divolte.server.IncomingRequestProcessor.DUPLICATE_EVENT_KEY;
 
 @ParametersAreNonnullByDefault
 public class MappingTestServer {
     private static final Logger log = LoggerFactory.getLogger(MappingTestServer.class);
+
+    private static final ObjectReader EVENT_PARAMETERS_READER = new ObjectMapper().reader();
 
     private final RecordMapper mapper;
     private final Undertow undertow;
@@ -72,12 +76,14 @@ public class MappingTestServer {
         final Schema schema = loadSchema(schemaFilename);
         final Config config = ConfigFactory.load();
 
-        mapper = new DslRecordMapper(config, mappingFilename, schema, Optional.ofNullable(lookupServiceFromConfig(config)));
+        final ValidatedConfiguration vc = new ValidatedConfiguration(() -> config);
+        mapper = new DslRecordMapper(vc, mappingFilename, schema, Optional.ofNullable(lookupServiceFromConfig(vc)));
 
         final HttpHandler handler = new AllowedMethodsHandler(this::handleEvent, Methods.POST);
+        final HttpHandler rootHandler = new ProxyAdjacentPeerAddressHandler(handler);
         undertow = Undertow.builder()
                 .addHttpListener(port, host)
-                .setHandler(handler)
+                .setHandler(rootHandler)
                 .build();
     }
 
@@ -87,8 +93,8 @@ public class MappingTestServer {
     }
 
     @Nullable
-    private static LookupService lookupServiceFromConfig(final Config config) {
-        return OptionalConfig.of(config::getString, "divolte.geodb")
+    private static LookupService lookupServiceFromConfig(final ValidatedConfiguration vc) {
+        return vc.configuration().tracking.ip2geoDatabase
                 .map((path) -> {
                     try {
                         return new ExternalDatabaseLookupService(Paths.get(path));
@@ -107,48 +113,63 @@ public class MappingTestServer {
     }
 
     private void handleEvent(HttpServerExchange exchange) throws Exception {
-        final ChannelInputStream cis = new ChannelInputStream(exchange.getRequestChannel());
-        final Map<String,Object> payload = JSON.std.<String>mapFrom(cis);
-        final String generatedPageViewId = CookieValues.generate().value;
+        try (final ChannelInputStream cis = new ChannelInputStream(exchange.getRequestChannel())) {
+            final JsonNode payload = EVENT_PARAMETERS_READER.readTree(cis);
+            final String generatedPageViewId = DivolteIdentifier.generate().value;
 
-        final BrowserEventData eventData = new BrowserEventData(
-                get(payload, "corrupt", Boolean.class).orElse(false),
-                get(payload, "party_id", String.class).flatMap(CookieValues::tryParse).orElse(CookieValues.generate()),
-                get(payload, "session_id", String.class).flatMap(CookieValues::tryParse).orElse(CookieValues.generate()),
-                get(payload, "page_view_id", String.class).orElse(generatedPageViewId),
-                get(payload, "event_id", String.class).orElse(generatedPageViewId + "0"),
-                System.currentTimeMillis(),
-                0L,
-                get(payload, "new_party_id", Boolean.class).orElse(false),
-                get(payload, "first_in_session", Boolean.class).orElse(false),
-                get(payload, "location", String.class),
-                get(payload, "referer", String.class),
-                get(payload, "event_type", String.class),
-                get(payload, "viewport_pixel_width", Integer.class),
-                get(payload, "viewport_pixel_height", Integer.class),
-                get(payload, "screen_pixel_width", Integer.class),
-                get(payload, "screen_pixel_height", Integer.class),
-                get(payload, "device_pixel_ratio", Integer.class),
-                (name) -> get(payload, "param_" + name, String.class),
-                () -> payload.entrySet()
-                .stream()
-                .filter((e) -> e.getKey().startsWith("param_"))
-                .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                (e) -> (String) e.getValue())));
+            final DivolteEvent.BrowserEventData browserEventData = new DivolteEvent.BrowserEventData(
+                    get(payload, "page_view_id", String.class).orElse(generatedPageViewId),
+                    get(payload, "location", String.class),
+                    get(payload, "referer", String.class),
+                    get(payload, "viewport_pixel_width", Integer.class),
+                    get(payload, "viewport_pixel_height", Integer.class),
+                    get(payload, "screen_pixel_width", Integer.class),
+                    get(payload, "screen_pixel_height", Integer.class),
+                    get(payload, "device_pixel_ratio", Integer.class));
+            final DivolteEvent divolteEvent = new DivolteEvent(
+                    get(payload, "corrupt", Boolean.class).orElse(false),
+                    get(payload, "party_id", String.class).flatMap(DivolteIdentifier::tryParse).orElse(DivolteIdentifier.generate()),
+                    get(payload, "session_id", String.class).flatMap(DivolteIdentifier::tryParse).orElse(DivolteIdentifier.generate()),
+                    get(payload, "event_id", String.class).orElse(generatedPageViewId + "0"),
+                    ClientSideCookieEventHandler.EVENT_SOURCE_NAME,
+                    System.currentTimeMillis(),
+                    0L,
+                    get(payload, "new_party_id", Boolean.class).orElse(false),
+                    get(payload, "first_in_session", Boolean.class).orElse(false),
+                    get(payload, "event_type", String.class),
+                    () -> get(payload, "parameters", JsonNode.class),
+                    Optional.of(browserEventData));
 
-        exchange.putAttachment(EVENT_DATA_KEY, eventData);
-        exchange.putAttachment(DUPLICATE_EVENT_KEY, get(payload, "duplicate", Boolean.class).orElse(false));
+            get(payload, "remote_host", String.class)
+                .ifPresent(ip -> {
+                    try {
+                        final InetAddress address = InetAddress.getByName(ip);
+                        // We have no way of knowing the port
+                        exchange.setSourceAddress(new InetSocketAddress(address, 0));
+                    } catch (final UnknownHostException e) {
+                        log.warn("Could not parse remote host: " + ip, e);
+                    }
+                });
 
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-        exchange.getResponseChannel().write(ByteBuffer.wrap(mapper.newRecordFromExchange(exchange).toString().getBytes(StandardCharsets.UTF_8)));
-        exchange.endExchange();
+            exchange.putAttachment(DIVOLTE_EVENT_KEY, divolteEvent);
+            exchange.putAttachment(DUPLICATE_EVENT_KEY, get(payload, "duplicate", Boolean.class).orElse(false));
+
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+            exchange.getResponseChannel().write(ByteBuffer.wrap(mapper.newRecordFromExchange(exchange).toString().getBytes(StandardCharsets.UTF_8)));
+            exchange.endExchange();
+        }
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> Optional<T> get(Map<String,Object> jsonResult, String key, Class<T> type) {
-        final Object result = jsonResult.get(key);
-        return result != null && result.getClass().isAssignableFrom(type) ? Optional.of((T) result) : Optional.empty();
+    private static <T> Optional<T> get(final JsonNode jsonResult, final String key, final Class<T> type) {
+        final Optional<JsonNode> fieldNode = Optional.ofNullable(jsonResult.get(key));
+        return fieldNode.map(f -> {
+            try {
+                return EVENT_PARAMETERS_READER.treeToValue(f, type);
+            } catch (final JsonProcessingException e) {
+                log.info("Unable to map field: " + key, e);
+                return null;
+            }
+        });
     }
 
     private static class MappingTestServerOptionParser extends OptionParser {

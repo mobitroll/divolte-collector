@@ -17,25 +17,14 @@
 package io.divolte.server.flume;
 
 import io.divolte.server.AvroRecordBuffer;
+import io.divolte.server.ValidatedConfiguration;
 import io.divolte.server.processing.ItemProcessor;
-
-import java.io.IOException;
-import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.Queue;
-import java.util.stream.Collectors;
-
-import javax.annotation.ParametersAreNonnullByDefault;
-import javax.annotation.concurrent.NotThreadSafe;
-
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.EncoderFactory;
+import org.apache.avro.io.JsonEncoder;
 import org.apache.flume.Event;
 import org.apache.flume.EventDeliveryException;
 import org.apache.flume.api.RpcClient;
@@ -44,19 +33,15 @@ import org.apache.flume.event.EventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.avro.Schema;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.JsonEncoder;
-import org.apache.avro.io.EncoderFactory;
+import javax.annotation.ParametersAreNonnullByDefault;
+import javax.annotation.concurrent.NotThreadSafe;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 
-import com.google.common.base.Joiner;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigList;
-import com.typesafe.config.ConfigValue;
-
-import static io.divolte.server.processing.ItemProcessor.ProcessingDirective.*;
+import static io.divolte.server.processing.ItemProcessor.ProcessingDirective.CONTINUE;
+import static io.divolte.server.processing.ItemProcessor.ProcessingDirective.PAUSE;
 
 @ParametersAreNonnullByDefault
 @NotThreadSafe
@@ -72,14 +57,14 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
     final int port;
     final Schema schema;
 
-    public FlumeFlusher(final Config config, final Schema schema) {
+    public FlumeFlusher(final ValidatedConfiguration config, final Schema schema) {
         Objects.requireNonNull(config);
-        
-        hostname = config.getString("divolte.flume_flusher.hostname");
-        port = config.getInt("divolte.flume_flusher.port");
+
+        hostname = config.configuration().flumeFlusher.hostname;
+        port = config.configuration().flumeFlusher.port;
 
         this.schema = schema;
-      
+
         try {
             client = RpcClientFactory.getDefaultInstance(hostname, port);
         } catch (Exception e) {
@@ -99,11 +84,11 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
           }
       }
       // Create a Flume Event object that encapsulates the sample data
-      
+
       try {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         JsonEncoder enc = EncoderFactory.get().jsonEncoder(schema, outputStream);
-      
+
         DataFileWriter<GenericRecord> writer = new DataFileWriter<GenericRecord>(new GenericDatumWriter<>(schema)).create(schema, outputStream);
         writer.appendEncoded(record.getByteBuffer());
         writer.close();
@@ -124,7 +109,7 @@ public final class FlumeFlusher implements ItemProcessor<AvroRecordBuffer> {
         throw new RuntimeException("Error serializing event");
       }
     }
-    
+
     @Override
     public ProcessingDirective process(final AvroRecordBuffer record) {
         logger.debug("Processing individual record.", record);
